@@ -1,0 +1,804 @@
+# VOID X - SATU FILE. Seluruh project (kode, resource, kunci debug) ada di dalam file ini.
+# Simpan sebagai: .github/workflows/build.yml  -> build otomatis berjalan di GitHub Actions.
+name: Build VOID X
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Tulis seluruh project VOID X
+        run: |
+          mkdir -p VOID-X
+          cd VOID-X
+          mkdir -p app app/src/main app/src/main/java/com/voidx/launcher/data app/src/main/java/com/voidx/launcher/home app/src/main/java/com/voidx/launcher/ui app/src/main/res/drawable app/src/main/res/layout app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "VOID-X"
+          include(":app")
+          EOF
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          org.gradle.caching=true
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          kotlin.code.style=official
+          EOF
+          cat > .gitignore <<'EOF'
+          .gradle/
+          build/
+          local.properties
+          .idea/
+          *.iml
+          .DS_Store
+          EOF
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.voidx.launcher"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.voidx.launcher"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              // Kunci debug tetap (ikut di repo) supaya APK versi baru bisa
+              // dipasang menimpa versi lama tanpa uninstall. Hanya untuk debug.
+              signingConfigs {
+                  getByName("debug") {
+                      storeFile = file("debug.keystore")
+                      storePassword = "android"
+                      keyAlias = "androiddebugkey"
+                      keyPassword = "android"
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.recyclerview:recyclerview:1.3.2")
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <!-- Hanya untuk membuka dialog copot pemasangan dari menu tekan-lama ikon. -->
+              <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+              <!-- Package visibility (Android 11+): daftar aplikasi launcher & launcher Home lain. -->
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent>
+                  <intent>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.HOME" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:allowBackup="false"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.VoidX">
+
+                  <activity
+                      android:name=".home.HomeActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:stateNotNeeded="true"
+                      android:taskAffinity=""
+                      android:windowSoftInputMode="adjustPan">
+
+                      <!-- Membuat VOID X bisa dipilih sebagai aplikasi Home default. -->
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.HOME" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                      </intent-filter>
+
+                      <!-- Agar VOID X juga muncul sebagai aplikasi biasa (tombol "Buka" di installer). -->
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">VOID X</string>
+              <string name="banner_text">Jadikan VOID X launcher utama agar tombol Home membuka VOID X.</string>
+              <string name="banner_button">Jadikan default</string>
+              <string name="menu_app_info">Info aplikasi</string>
+              <string name="menu_uninstall">Copot pemasangan</string>
+              <string name="toast_cannot_open">Aplikasi tidak dapat dibuka</string>
+              <string name="toast_action_failed">Tindakan tidak tersedia di perangkat ini</string>
+          </resources>
+          EOF
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="void_scrim">#33000000</color>
+              <color name="glass_fill">#26FFFFFF</color>
+              <color name="glass_stroke">#40FFFFFF</color>
+              <color name="ic_launcher_background">#0B0B0F</color>
+          </resources>
+          EOF
+          cat > app/src/main/res/values/themes.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <!-- Tema wallpaper bawaan framework: wallpaper sistem tampil di belakang launcher. -->
+              <style name="Theme.VoidX" parent="android:Theme.Material.Wallpaper.NoTitleBar">
+                  <item name="android:windowShowWallpaper">true</item>
+                  <item name="android:windowBackground">@android:color/transparent</item>
+                  <item name="android:colorBackgroundCacheHint">@null</item>
+                  <item name="android:statusBarColor">@android:color/transparent</item>
+                  <item name="android:navigationBarColor">@android:color/transparent</item>
+              </style>
+          </resources>
+          EOF
+          cat > app/src/main/res/drawable/bg_glass_panel.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <solid android:color="@color/glass_fill" />
+              <stroke
+                  android:width="1dp"
+                  android:color="@color/glass_stroke" />
+              <corners android:radius="22dp" />
+          </shape>
+          EOF
+          cat > app/src/main/res/drawable/bg_glass_button.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <ripple xmlns:android="http://schemas.android.com/apk/res/android"
+              android:color="#33000000">
+              <item>
+                  <shape android:shape="rectangle">
+                      <solid android:color="#F2FFFFFF" />
+                      <corners android:radius="14dp" />
+                  </shape>
+              </item>
+          </ripple>
+          EOF
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#14FFFFFF"
+                  android:pathData="M32,54 A22,22 0 1,0 76,54 A22,22 0 1,0 32,54 Z"
+                  android:strokeColor="#8CFFFFFF"
+                  android:strokeWidth="3" />
+              <path
+                  android:pathData="M44,44 L64,64 M64,44 L44,64"
+                  android:strokeColor="#FFFFFFFF"
+                  android:strokeLineCap="round"
+                  android:strokeWidth="6" />
+          </vector>
+          EOF
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+          cat > app/src/main/res/layout/activity_home.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/void_scrim">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:orientation="vertical">
+
+                  <LinearLayout
+                      android:id="@+id/defaultBanner"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_margin="16dp"
+                      android:background="@drawable/bg_glass_panel"
+                      android:gravity="center_vertical"
+                      android:orientation="horizontal"
+                      android:padding="14dp"
+                      android:visibility="gone">
+
+                      <TextView
+                          android:layout_width="0dp"
+                          android:layout_height="wrap_content"
+                          android:layout_weight="1"
+                          android:text="@string/banner_text"
+                          android:textColor="@android:color/white"
+                          android:textSize="13sp" />
+
+                      <TextView
+                          android:id="@+id/defaultButton"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:layout_marginStart="12dp"
+                          android:background="@drawable/bg_glass_button"
+                          android:clickable="true"
+                          android:focusable="true"
+                          android:paddingStart="14dp"
+                          android:paddingTop="9dp"
+                          android:paddingEnd="14dp"
+                          android:paddingBottom="9dp"
+                          android:text="@string/banner_button"
+                          android:textColor="#FF0B0B0F"
+                          android:textSize="13sp"
+                          android:textStyle="bold" />
+                  </LinearLayout>
+
+                  <androidx.recyclerview.widget.RecyclerView
+                      android:id="@+id/appGrid"
+                      android:layout_width="match_parent"
+                      android:layout_height="0dp"
+                      android:layout_weight="1"
+                      android:clipToPadding="false"
+                      android:overScrollMode="never"
+                      android:paddingStart="8dp"
+                      android:paddingTop="8dp"
+                      android:paddingEnd="8dp"
+                      android:paddingBottom="24dp" />
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+          cat > app/src/main/res/layout/item_app.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:background="?android:attr/selectableItemBackground"
+              android:gravity="center_horizontal"
+              android:orientation="vertical"
+              android:paddingStart="2dp"
+              android:paddingTop="10dp"
+              android:paddingEnd="2dp"
+              android:paddingBottom="10dp">
+
+              <ImageView
+                  android:id="@+id/appIcon"
+                  android:layout_width="56dp"
+                  android:layout_height="56dp"
+                  android:importantForAccessibility="no" />
+
+              <TextView
+                  android:id="@+id/appLabel"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_marginTop="6dp"
+                  android:ellipsize="end"
+                  android:gravity="center"
+                  android:maxLines="1"
+                  android:shadowColor="#99000000"
+                  android:shadowDx="0"
+                  android:shadowDy="1"
+                  android:shadowRadius="4"
+                  android:textColor="@android:color/white"
+                  android:textSize="11sp" />
+          </LinearLayout>
+          EOF
+          cat > app/src/main/java/com/voidx/launcher/data/AppInfo.kt <<'EOF'
+          package com.voidx.launcher.data
+
+          import android.content.ComponentName
+          import android.graphics.drawable.Drawable
+
+          /**
+           * Satu aplikasi yang bisa dibuka dari launcher (satu activity berkategori LAUNCHER).
+           */
+          class AppInfo(
+              val label: String,
+              val packageName: String,
+              val className: String,
+              val isSystemApp: Boolean,
+              val icon: Drawable
+          ) {
+              val component: ComponentName
+                  get() = ComponentName(packageName, className)
+          }
+          EOF
+          cat > app/src/main/java/com/voidx/launcher/data/AppRepository.kt <<'EOF'
+          package com.voidx.launcher.data
+
+          import android.content.Context
+          import android.content.Intent
+          import android.content.pm.ApplicationInfo
+          import android.content.pm.PackageManager
+          import android.os.Build
+          import java.util.Locale
+
+          /**
+           * Sumber data aplikasi terpasang. Memakai PackageManager (resmi) dan
+           * tidak membutuhkan izin QUERY_ALL_PACKAGES — cukup deklarasi <queries> di manifest.
+           *
+           * Panggil [loadLaunchableApps] dari thread latar belakang (memuat ikon cukup berat).
+           */
+          class AppRepository(private val context: Context) {
+
+              @Suppress("DEPRECATION")
+              fun loadLaunchableApps(): List<AppInfo> {
+                  val packageManager = context.packageManager
+                  val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+
+                  val activities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      packageManager.queryIntentActivities(
+                          launcherIntent,
+                          PackageManager.ResolveInfoFlags.of(0L)
+                      )
+                  } else {
+                      packageManager.queryIntentActivities(launcherIntent, 0)
+                  }
+
+                  return activities
+                      .filter { it.activityInfo.packageName != context.packageName }
+                      .mapNotNull { resolveInfo ->
+                          try {
+                              val activityInfo = resolveInfo.activityInfo
+                              val appFlags = activityInfo.applicationInfo.flags
+                              AppInfo(
+                                  label = resolveInfo.loadLabel(packageManager).toString(),
+                                  packageName = activityInfo.packageName,
+                                  className = activityInfo.name,
+                                  isSystemApp = (appFlags and ApplicationInfo.FLAG_SYSTEM) != 0,
+                                  icon = resolveInfo.loadIcon(packageManager)
+                              )
+                          } catch (e: Exception) {
+                              // Satu aplikasi bermasalah tidak boleh menggagalkan seluruh daftar.
+                              null
+                          }
+                      }
+                      .sortedBy { it.label.lowercase(Locale.getDefault()) }
+              }
+          }
+          EOF
+          cat > app/src/main/java/com/voidx/launcher/ui/AppGridAdapter.kt <<'EOF'
+          package com.voidx.launcher.ui
+
+          import android.view.LayoutInflater
+          import android.view.View
+          import android.view.ViewGroup
+          import android.widget.ImageView
+          import android.widget.TextView
+          import androidx.recyclerview.widget.RecyclerView
+          import com.voidx.launcher.R
+          import com.voidx.launcher.data.AppInfo
+
+          /**
+           * Adapter grid ikon aplikasi.
+           *
+           * @param onClick dipanggil saat ikon diketuk; View kedua adalah ikon (sumber animasi buka app).
+           * @param onLongClick dipanggil saat ikon ditekan lama; View kedua adalah anchor menu.
+           */
+          class AppGridAdapter(
+              private val onClick: (AppInfo, View) -> Unit,
+              private val onLongClick: (AppInfo, View) -> Unit
+          ) : RecyclerView.Adapter<AppGridAdapter.ViewHolder>() {
+
+              private var items: List<AppInfo> = emptyList()
+
+              fun submit(newItems: List<AppInfo>) {
+                  items = newItems
+                  notifyDataSetChanged()
+              }
+
+              override fun getItemCount(): Int = items.size
+
+              override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+                  val view = LayoutInflater.from(parent.context).inflate(R.layout.item_app, parent, false)
+                  return ViewHolder(view)
+              }
+
+              override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+                  val app = items[position]
+                  holder.icon.setImageDrawable(app.icon)
+                  holder.label.text = app.label
+                  holder.itemView.setOnClickListener { onClick(app, holder.icon) }
+                  holder.itemView.setOnLongClickListener {
+                      onLongClick(app, holder.itemView)
+                      true
+                  }
+              }
+
+              class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+                  val icon: ImageView = view.findViewById(R.id.appIcon)
+                  val label: TextView = view.findViewById(R.id.appLabel)
+              }
+          }
+          EOF
+          cat > app/src/main/java/com/voidx/launcher/home/HomeActivity.kt <<'EOF'
+          package com.voidx.launcher.home
+
+          import android.app.Activity
+          import android.app.ActivityOptions
+          import android.app.role.RoleManager
+          import android.content.ActivityNotFoundException
+          import android.content.BroadcastReceiver
+          import android.content.Context
+          import android.content.Intent
+          import android.content.IntentFilter
+          import android.content.pm.PackageManager
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.Settings
+          import android.view.View
+          import android.widget.PopupMenu
+          import android.widget.Toast
+          import androidx.core.content.ContextCompat
+          import androidx.recyclerview.widget.GridLayoutManager
+          import androidx.recyclerview.widget.RecyclerView
+          import com.voidx.launcher.R
+          import com.voidx.launcher.data.AppInfo
+          import com.voidx.launcher.data.AppRepository
+          import com.voidx.launcher.ui.AppGridAdapter
+          import java.util.concurrent.Executors
+
+          /**
+           * Layar Home VOID X (Tahap 1: fondasi).
+           *
+           * - Terdaftar sebagai HOME di manifest, sehingga bisa dipilih sebagai launcher default.
+           * - Wallpaper sistem tampil di belakang (tema windowShowWallpaper).
+           * - Memuat semua aplikasi terpasang lewat PackageManager (di thread latar belakang).
+           * - Ketuk ikon = buka aplikasi; tekan lama = Info aplikasi / Copot pemasangan.
+           * - Daftar otomatis diperbarui saat aplikasi dipasang, dihapus, atau diperbarui.
+           */
+          class HomeActivity : Activity() {
+
+              private lateinit var repository: AppRepository
+              private lateinit var adapter: AppGridAdapter
+              private lateinit var appGrid: RecyclerView
+              private lateinit var defaultBanner: View
+
+              private val mainHandler = Handler(Looper.getMainLooper())
+              private val ioExecutor = Executors.newSingleThreadExecutor()
+              private var loadGeneration = 0
+
+              private val reloadRunnable = Runnable { reloadApps() }
+
+              private val packageReceiver = object : BroadcastReceiver() {
+                  override fun onReceive(context: Context?, intent: Intent?) {
+                      // Beberapa broadcast datang beruntun saat update aplikasi; gabungkan jadi satu muat ulang.
+                      mainHandler.removeCallbacks(reloadRunnable)
+                      mainHandler.postDelayed(reloadRunnable, RELOAD_DEBOUNCE_MS)
+                  }
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_home)
+
+                  repository = AppRepository(applicationContext)
+                  defaultBanner = findViewById(R.id.defaultBanner)
+                  findViewById<View>(R.id.defaultButton).setOnClickListener { requestDefaultLauncher() }
+
+                  adapter = AppGridAdapter(
+                      onClick = { app, view -> launchApp(app, view) },
+                      onLongClick = { app, view -> showAppMenu(app, view) }
+                  )
+
+                  appGrid = findViewById(R.id.appGrid)
+                  appGrid.layoutManager = GridLayoutManager(this, calculateColumns())
+                  appGrid.setHasFixedSize(true)
+                  appGrid.adapter = adapter
+
+                  registerPackageReceiver()
+                  reloadApps()
+              }
+
+              override fun onResume() {
+                  super.onResume()
+                  // Banner hanya tampil selama VOID X belum menjadi launcher default.
+                  defaultBanner.visibility = if (isDefaultLauncher()) View.GONE else View.VISIBLE
+              }
+
+              override fun onNewIntent(intent: Intent?) {
+                  super.onNewIntent(intent)
+                  // Tombol Home ditekan saat VOID X sudah di depan: kembali ke posisi atas.
+                  if (intent?.hasCategory(Intent.CATEGORY_HOME) == true) {
+                      appGrid.smoothScrollToPosition(0)
+                  }
+              }
+
+              @Suppress("OVERRIDE_DEPRECATION")
+              override fun onBackPressed() {
+                  // Launcher tidak keluar dengan tombol Kembali.
+              }
+
+              override fun onDestroy() {
+                  mainHandler.removeCallbacksAndMessages(null)
+                  try {
+                      unregisterReceiver(packageReceiver)
+                  } catch (e: IllegalArgumentException) {
+                      // Receiver sudah tidak terdaftar.
+                  }
+                  ioExecutor.shutdown()
+                  super.onDestroy()
+              }
+
+              // ---------------------------------------------------------------- data
+
+              private fun reloadApps() {
+                  val generation = ++loadGeneration
+                  ioExecutor.execute {
+                      val apps = repository.loadLaunchableApps()
+                      mainHandler.post {
+                          // Abaikan hasil lama jika sudah ada muat ulang yang lebih baru.
+                          if (generation == loadGeneration && !isDestroyed) {
+                              adapter.submit(apps)
+                          }
+                      }
+                  }
+              }
+
+              private fun registerPackageReceiver() {
+                  val filter = IntentFilter().apply {
+                      addAction(Intent.ACTION_PACKAGE_ADDED)
+                      addAction(Intent.ACTION_PACKAGE_REMOVED)
+                      addAction(Intent.ACTION_PACKAGE_CHANGED)
+                      addAction(Intent.ACTION_PACKAGE_REPLACED)
+                      addDataScheme("package")
+                  }
+                  ContextCompat.registerReceiver(
+                      this,
+                      packageReceiver,
+                      filter,
+                      ContextCompat.RECEIVER_NOT_EXPORTED
+                  )
+              }
+
+              // ------------------------------------------------------- tata letak
+
+              private fun calculateColumns(): Int {
+                  val metrics = resources.displayMetrics
+                  val widthDp = metrics.widthPixels / metrics.density
+                  return (widthDp / ITEM_WIDTH_DP).toInt().coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+              }
+
+              // ------------------------------------------------------ buka aplikasi
+
+              private fun launchApp(app: AppInfo, sourceView: View) {
+                  val intent = Intent(Intent.ACTION_MAIN).apply {
+                      addCategory(Intent.CATEGORY_LAUNCHER)
+                      component = app.component
+                      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                  }
+                  try {
+                      // Animasi membesar dari posisi ikon.
+                      val options = ActivityOptions.makeScaleUpAnimation(
+                          sourceView, 0, 0, sourceView.width, sourceView.height
+                      )
+                      startActivity(intent, options.toBundle())
+                  } catch (e: ActivityNotFoundException) {
+                      toast(R.string.toast_cannot_open)
+                  } catch (e: SecurityException) {
+                      toast(R.string.toast_cannot_open)
+                  }
+              }
+
+              // ------------------------------------------------------------- menu
+
+              private fun showAppMenu(app: AppInfo, anchor: View) {
+                  val popup = PopupMenu(this, anchor)
+                  popup.menu.add(0, MENU_INFO, 0, R.string.menu_app_info)
+                  if (!app.isSystemApp) {
+                      popup.menu.add(0, MENU_UNINSTALL, 1, R.string.menu_uninstall)
+                  }
+                  popup.setOnMenuItemClickListener { item ->
+                      when (item.itemId) {
+                          MENU_INFO -> openAppInfo(app)
+                          MENU_UNINSTALL -> uninstallApp(app)
+                      }
+                      true
+                  }
+                  popup.show()
+              }
+
+              private fun openAppInfo(app: AppInfo) {
+                  val intent = Intent(
+                      Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                      Uri.fromParts("package", app.packageName, null)
+                  )
+                  startActivitySafely(intent)
+              }
+
+              private fun uninstallApp(app: AppInfo) {
+                  val intent = Intent(Intent.ACTION_DELETE, Uri.fromParts("package", app.packageName, null))
+                  startActivitySafely(intent)
+              }
+
+              private fun startActivitySafely(intent: Intent) {
+                  try {
+                      startActivity(intent)
+                  } catch (e: ActivityNotFoundException) {
+                      toast(R.string.toast_action_failed)
+                  } catch (e: SecurityException) {
+                      toast(R.string.toast_action_failed)
+                  }
+              }
+
+              // ------------------------------------------------- launcher default
+
+              @Suppress("DEPRECATION")
+              private fun isDefaultLauncher(): Boolean {
+                  val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                  val resolved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      packageManager.resolveActivity(
+                          homeIntent,
+                          PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                      )
+                  } else {
+                      packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                  }
+                  return resolved?.activityInfo?.packageName == packageName
+              }
+
+              /**
+               * Android 10+: dialog resmi "Jadikan aplikasi Home default" lewat RoleManager.
+               * Versi lebih lama / jika dialog tidak tersedia: buka pengaturan aplikasi Home.
+               */
+              private fun requestDefaultLauncher() {
+                  try {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                          val roleManager = getSystemService(RoleManager::class.java)
+                          if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                              startActivityForResult(
+                                  roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME),
+                                  REQUEST_HOME_ROLE
+                              )
+                              return
+                          }
+                      }
+                      startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+                  } catch (e: ActivityNotFoundException) {
+                      startActivitySafely(Intent(Settings.ACTION_SETTINGS))
+                  }
+              }
+
+              private fun toast(messageRes: Int) {
+                  Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
+              }
+
+              private companion object {
+                  const val REQUEST_HOME_ROLE = 100
+                  const val RELOAD_DEBOUNCE_MS = 400L
+                  const val ITEM_WIDTH_DP = 84f
+                  const val MIN_COLUMNS = 3
+                  const val MAX_COLUMNS = 8
+                  const val MENU_INFO = 1
+                  const val MENU_UNINSTALL = 2
+              }
+          }
+          EOF
+          base64 -d > app/debug.keystore <<'EOF'
+          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
+          EOF
+
+      - name: Build APK debug
+        working-directory: VOID-X
+        run: gradle assembleDebug --stacktrace
+
+      - name: Unggah APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOID-X-debug-apk
+          path: VOID-X/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
